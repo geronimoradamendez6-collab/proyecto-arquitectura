@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Interactivo 3D - Arquitectura</title>
+    <style>
+        /* CSS3 Responsive Layout y variables */
+        :root {
+            --bg-panel: rgba(255, 255, 255, 0.95);
+            --text-color: #333;
+        }
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            font-family: 'Times New Roman', Times, serif; 
+        }
+        #ui-container { 
+            position: absolute; 
+            top: 20px; 
+            left: 20px; 
+            background: var(--bg-panel); 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2); 
+            width: 320px; 
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        h3 { margin-top: 0; margin-bottom: 5px; color: var(--text-color); }
+        .input-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px;}
+        .input-group input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;}
+        .dashboard { 
+            margin-top: 10px; 
+            padding-top: 15px; 
+            border-top: 2px solid #ddd; 
+            font-weight: bold; 
+            color: var(--text-color); 
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <!-- HTML5 Stacking: Panel de control modular -->
+    <div id="ui-container">
+        <h3>Simulador Paramétrico</h3>
+        <div class="input-group">
+            <label for="perimeter">Parámetro b (Perímetro base):</label>
+            <input type="number" id="perimeter" value="20" step="0.1">
+        </div>
+        <div class="input-group">
+            <label for="width">Ancho del lote (x):</label>
+            <input type="number" id="width" value="5" step="0.1">
+        </div>
+        <div class="input-group">
+            <label for="height">Altura de entrepiso (m):</label>
+            <input type="number" id="height" value="2.85" step="0.01">
+        </div>
+        
+        <!-- Dashboard de métricas en tiempo real -->
+        <div class="dashboard" id="results">
+            Área: 0.00 m²<br>
+            Volumen Exacto: 0.00 m³<br>
+            Costo Estimado: $0.00
+        </div>
+    </div>
+
+    <!-- Librería 3D: Three.js desde CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // 1. Configuración de la escena tridimensional
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xe0e0e0);
+        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(15, 15, 20);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Iluminación
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10, 20, 10);
+        scene.add(dirLight);
+        scene.add(new THREE.AmbientLight(0x606060));
+
+        // Cuadrícula de referencia
+        const gridHelper = new THREE.GridHelper(50, 50);
+        scene.add(gridHelper);
+
+        // Variables globales del modelo
+        let buildingMesh;
+        const material = new THREE.MeshLambertMaterial({ color: 0x2194ce, transparent: true, opacity: 0.9 });
+
+        // 2. Funciones Algebraicas y Cálculo en Tiempo Real
+        function updateSimulation() {
+            const b = parseFloat(document.getElementById('perimeter').value) || 0;
+            const x = parseFloat(document.getElementById('width').value) || 0;
+            const h = parseFloat(document.getElementById('height').value) || 0; // Operaciones con decimales
+
+            // Ecuación cuadrática para el Área
+            const area = -(x * x) + (b * x);
+            
+            // Si el área es inválida, detener renderizado
+            if (area <= 0 || x <= 0) {
+                document.getElementById('results').innerHTML = `<span style="color:red;">Dimensiones inválidas</span>`;
+                if (buildingMesh) scene.remove(buildingMesh);
+                return;
+            }
+
+            const depth = area / x; // Despejar profundidad para la geometría tridimensional
+            const volume = area * h; // Operaciones con decimales
+
+            // Ecuación lineal para Costos
+            const cost = (area * 1200) + 5000;
+
+            // Actualizar Dashboard
+            document.getElementById('results').innerHTML = `
+                Área: ${area.toFixed(2)} m²<br>
+                Volumen Exacto: ${volume.toFixed(2)} m³<br>
+                Costo Estimado: $${cost.toFixed(2)}
+            `;
+
+            // Actualizar Malla Dinámica 3D
+            if (buildingMesh) scene.remove(buildingMesh);
+            
+            const geometry = new THREE.BoxGeometry(x, h, depth);
+            buildingMesh = new THREE.Mesh(geometry, material);
+            // Elevar el edificio para que descanse sobre la cuadrícula
+            buildingMesh.position.y = h / 2; 
+            scene.add(buildingMesh);
+        }
+
+        // 3. Listeners interactivos
+        document.getElementById('perimeter').addEventListener('input', updateSimulation);
+        document.getElementById('width').addEventListener('input', updateSimulation);
+        document.getElementById('height').addEventListener('input', updateSimulation);
+
+        // 4. Bucle de renderizado
+        function animate() {
+            requestAnimationFrame(animate);
+            // Pequeña rotación automática para mejor visualización
+            if (scene.children.length > 2) {
+               // camera.position.x = 20 * Math.sin(Date.now() * 0.0005);
+               // camera.position.z = 20 * Math.cos(Date.now() * 0.0005);
+               // camera.lookAt(0,0,0);
+            }
+            renderer.render(scene, camera);
+        }
+
+        // Compatibilidad con pantallas (Responsive)
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Inicializar
+        updateSimulation();
+        animate();
+    </script>
+</body>
+</html
